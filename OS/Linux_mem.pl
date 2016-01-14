@@ -2,8 +2,8 @@
 use strict;
 use warnings;
 my %mem;
-open (F,'</proc/meminfo');
-while (<F>){
+open (MEMINFO,'</proc/meminfo');
+while (<MEMINFO>){
 	my ($var,$value)=split(' ',$_);
 	$var=~s/://g;
 	$mem{$var}=$value;
