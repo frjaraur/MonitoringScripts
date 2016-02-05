@@ -1,0 +1,9 @@
+SELENIUM_TESTS:
+    TEST_GOOGLE:
+            - open http://www.google.es
+            - wait_for_page_to_load 2000
+            - close
+    TEST_YAHOO:
+            - open http://www.yahoo.es
+            - wait_for_page_to_load 2000
+            - close
