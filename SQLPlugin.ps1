@@ -98,7 +98,7 @@ function SQLConnectivity{
     Try
       {
             $result=(Invoke-Sqlcmd -ServerInstance $instance -Query "@@VERSION"  -ErrorVariable getServiceError -ErrorAction SilentlyContinue).Column1
-            $resut=1 # We don't care about version 
+            $result=1 # We don't care about version 
        }
     Catch
         {
