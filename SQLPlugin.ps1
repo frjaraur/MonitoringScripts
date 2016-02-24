@@ -22,8 +22,6 @@ $VER="1.0"
 #          MSSQL Server: Nº  total de conexiones iniciadas
 
 
-#module_plugin powershell c:\MONITORIZACION\collections\ConvergentesSist\Pruebas\PaaS_SQLServer_plugin.ps1 -instances "MSSQLSERVER" -tags "TEST1,TEST2" 
-
 
 
 
@@ -95,6 +93,23 @@ function SQLQueryMetric{
 }
 
 
+function SQLConnectivity{
+    param ([string]$instance)
+    Try
+      {
+            $result=(Invoke-Sqlcmd -ServerInstance $instance -Query "@@VERSION"  -ErrorVariable getServiceError -ErrorAction SilentlyContinue).Column1
+            $resut=1 # We don't care about version 
+       }
+    Catch
+        {
+            $result=0
+        }
+
+    return $result
+}
+
+
+
 function SQLDBSizes{
     param ([string]$instance)
     $hdbsizes = @{}
@@ -117,7 +132,7 @@ function SQLServiceInstanceRunning{
     param ([string]$instance)
     
     #Clean netbios hostname or resourcegroup name (Avoid '\' from SQL Server Instance Name or it will not work :| )
-    $dummy,$ins=$instance -split '\\'
+    $dummy,$ins=$instance -split '\\';if ($ins -like ""){$ins=$instance}
 
 
     #Get-Service | where-object { $_.DisplayName -match "SQL Server \($instance\)" } | foreach-object {echo $_.Status;if ($_.Status -eq "Running") { return 1 }}
@@ -136,7 +151,7 @@ function SQLServiceAgentRunning{
     param ([string]$instance)
     
     #Clean netbios hostname or resourcegroup name (Avoid '\' from SQL Server Instance Name or it will not work :| )
-    $dummy,$ins=$instance -split '\\'
+    $dummy,$ins=$instance -split '\\';if ($ins -like ""){$ins=$instance}
 
 
     #Get-Service | where-object { $_.DisplayName -match "SQL Server \($instance\)" } | foreach-object {echo $_.Status;if ($_.Status -eq "Running") { return 1 }}
@@ -162,8 +177,6 @@ function SQLGetCounter{
         }
     return $metricdata
 }
-
-
 
 
 function CleanArraySpaces{
@@ -203,7 +216,7 @@ foreach ($instance in $sqlinstances) {
         # Get Service Status
         $module_name=$modules_prefix+"Service Status $instance"
         $module_type="generic_proc"
-        $module_description="Verificacion de estado del servicio SQL de la instancia $instance - No se ejecuta el resto de modulos si el servicio esta caido."
+        $module_description="SQL Service Status for instance $instance - All other modules will not refresh if server is down."
         $module_value=SQLServiceInstanceRunning "$instance"
         
         Module_xml  "$module_name" "$module_type" "$module_value" "$module_description" "$tags"
@@ -214,13 +227,13 @@ foreach ($instance in $sqlinstances) {
         # Get Service Status
         $module_name=$modules_prefix+"Agent Service Status $instance"
         $module_type="generic_proc"
-        $module_description="Verificacion de estado del servicio SQL Agent de la instancia ${instance}."
+        $module_description="SQL Agent Service Status for instance ${instance}."
         $module_value=SQLServiceAgentRunning "$instance"
         
         Module_xml  "$module_name" "$module_type" "$module_value" "$module_description" "$tags"
     
         # If Service is not running, don't check anything else 
-        if ($module_value -eq 0){continue}
+        #if ($module_value -eq 0){continue}
 
 
         # Obtain Cluster Resource Names instead of Hostnames for a Cluster Environment
@@ -242,6 +255,13 @@ foreach ($instance in $sqlinstances) {
             if ($instance -like "MSSQLSERVER" -or $instance -like "*\MSSQLSERVER"){$serverinstance=$sqlres}else{$serverinstance=$sqlres + "\" + $instance }
 
             #write-host "-->[$serverinstance]"
+
+            $module_name=$modules_prefix+"Connectivity to instance $instance"
+            $module_type="generic_proc"
+            $module_description="SQL Connectivity Status for instance ${instance}."
+            $module_value=SQLConnectivity "$serverinstance" 
+            
+            Module_xml  "$module_name" "$module_type" "$module_value" "$module_description" "$tags"
 
             # Metric Modules
             $module_name=$modules_prefix +"Connection Attempts $instance"
@@ -268,7 +288,7 @@ foreach ($instance in $sqlinstances) {
             {
                 $module_name=$modules_prefix +"$instance Database "+ $dbname
                 $module_type="generic_data"
-                $module_description="Size of Instance's Database $dbname in KB"
+                $module_description="Size of Instance $instance Database $dbname in KB"
                 $module_value=$dbsizes.$dbname
 
                 Module_xml  "$module_name" "$module_type" "$module_value" "$module_description" "$tags"
