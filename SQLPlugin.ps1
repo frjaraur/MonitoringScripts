@@ -22,6 +22,8 @@ $VER="1.0"
 #          MSSQL Server: Nº  total de conexiones iniciadas
 
 
+#module_plugin powershell c:\MONITORIZACION\collections\ConvergentesSist\Pruebas\PaaS_SQLServer_plugin.ps1 -instances "MSSQLSERVER" -tags "TEST1,TEST2" 
+
 
 
 
