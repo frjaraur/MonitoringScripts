@@ -48,8 +48,8 @@ sub Round(){
 
 sub Usage(){
     print "Uso\n";
-    print "$me <-c bbdd:user:passwd> [-t tags] \n";
-    print "-c bbdd:user:passwd,bbdd1:user1:passwd1\n";
+    print "$me <-c bbdd:user:passwd> [-u url_server-status] [-t tags] \n";
+    print "-u url_server-status [default http[s]://localhost/server-status]\n";
     print "-t tag1,tag2,tag3\n";
 	print "NOTE: Default Thresholds are hardcoded in perl hash %DEFAULT_THRESHOLDS\n";
     exit;
@@ -78,6 +78,7 @@ sub CleanNonNumbers(){
 
 sub GetApacheStatus(){
 	my $url=$_[0];
+	$url=~s/(http|https)\:\/\///g;
 	my $getter="";
 	my $result="";
 	GETTER:{
@@ -141,9 +142,15 @@ sub GetApacheStatusValues(){
 	return %dumm;
 }
 
+sub CheckProcess(){
+        my $process_name=$_[0];
+        my $nproc=`ps -efwww|grep -v grep |grep '$process_name'|wc -l `;
+        chomp($nproc);
+        return $nproc;
+}
 
 ########## DEFAULT THRESHOLDS ##########
-my %DEFAULT_THRESHOLDS = (
+my %DEFAULT_THRESHOLDS = ( #Warning, Criticald
     'requests/sec'    => [ 70,80 ],
     'Total accesses'        => [ 70,80 ],
     'CPU Load'        => [ 70,80 ],
@@ -177,6 +184,12 @@ $tags=$opts{t} if defined($opts{t});
 #&XMLPrint("MySQL Server Process","generic_proc","MySQL Server Process",1,$tags);
 
 my $linuxos=LinuxOsFlavour();
+my $apacheprocess="apache ";
+if ($linuxos =~/redh/ ){$apacheprocess="httpd ";}
+
+
+if ( &CheckProcess($apacheprocess) == 0 ){&XMLPrint("Apache Server Process","generic_proc","Apache Server Process",0,$tags);exit 0;}
+&XMLPrint("Apache Server Process","generic_proc","Apache Server Process",1,$tags);
 
 my ($state,$statusstring)=&GetApacheStatus($statusurl);
 my @lines=split(/\n/,$statusstring);
