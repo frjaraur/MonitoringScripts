@@ -1,10 +1,6 @@
 [CmdletBinding()]
 Param(
   [Parameter(Mandatory=$False)]
-   [string]$instances,
-  [Parameter(Mandatory=$False)]
-   [string]$tags,
-  [Parameter(Mandatory=$False)]
    [switch]$help,
   [Parameter(Mandatory=$False)]
    [switch]$version,
@@ -35,10 +31,21 @@ $VER="1.2"
 function Usage {
     $me=split-path $MyInvocation.PSCommandPath -Leaf
     echo "VERSION: $VER"
-    echo "*** Es imprescindible especificar al menos las instancias a monitorizar separadas por ',' "
+    echo "$me"
+    echo "*** Es imprescindible la existencia del fichero de configuracion por defecto C:\MONITORIZACION\collections\PaaS_SQLServer_plugin.cfg "
 
     exit
 
+}
+
+function GetConfigFile{
+    param ([string]$confiddir)
+    $scriptname=$(split-path $MyInvocation.PSCommandPath -Leaf ) -replace ".ps1", ""
+    $hostname=$($env:COMPUTERNAME)
+    $configfilename=$scriptname+"."+$hostname+".cfg"
+    $configfile=$(Get-ChildItem -Recurse -Path $confiddir |Where-Object { $_.name -match $configfilename }).FullName
+    if (!$configfile){$configfile=$scriptname+".cfg"}
+    return $confiddir+"\"+$configfile
 }
 
 function PluginError{
@@ -49,8 +56,8 @@ function PluginError{
 	echo "<description><![CDATA[Plugin Execution Status]]></description>"
 	echo "<data><![CDATA[${severity}: $text]]></data>"
     #echo "<tags><![CDATA[$module_tags]]></tags>"
-	echo "<str_critical><![CDATA[CRITICAL:]]></str_critical>\n";
-	echo "<str_warning><![CDATA[WARNING:]]></str_warning>\n";
+	echo "<str_critical><![CDATA[CRITICAL:]]></str_critical>";
+	echo "<str_warning><![CDATA[WARNING:]]></str_warning>";
 	echo "</module>"
     exit
 }
@@ -272,6 +279,9 @@ function XMLOut{
 
 ######## Main
 
+$plugin_name="SQLServer_plugin_"+$VER
+
+if ($help -or $version){ Usage }
 
 #SQLServer
 #          MSSQL Server: Conectividad con una instancia
@@ -321,22 +331,6 @@ $modules_in_plugin = @{
 }
 
 
-
-# Default Configfile if specific Configfile does not exist
-$plugin_default_configfile="C:\MONITORIZACION\PaaS_SQLServer_plugin.cfg"
-
-$plugin_configfile="C:\MONITORIZACION\PaaS_SQLServer_plugin.yomismo.cfg"
-
-if (-not (Test-Path $plugin_configfile)){$plugin_configfile=$plugin_default_configfile}
-
-
-
-# Tentacle Agent Output Dir
-$xml_out_dir="C:\MONITORIZACION\temp"
-
-if ($help -or $version){ Usage }
-
-
 # List All available modules that this plugin could check
 if ($list){
     $arr_modules_in_plugin = $modules_in_plugin.Keys
@@ -350,6 +344,24 @@ if ($list){
 }
 
 
+
+
+
+# DefaultConfigfile if specific Configfile does not exist
+$plugin_configfile=GetConfigFile("C:\PANDORA\collections")
+if (-not (Test-Path $plugin_configfile)){
+    PluginError $plugin_name "CRITICAL" "ERROR: No se encontro el fichero $plugin_configfile"
+}
+
+
+
+# Tentacle Agent Output Dir
+$xml_out_dir="C:\PANDORA\temp"
+
+
+
+
+
 # Configuration for modules from configfile
 $cfg_modules=@{}
 
@@ -358,7 +370,7 @@ $xml_agent=""
 $agent_data=@{}
 
 # Broker
-$brokersuffix="SALUD"
+$brokersuffix="HEATH"
 $xml_broker=""
 $broker_data=@{}
 
