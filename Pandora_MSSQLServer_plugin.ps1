@@ -237,6 +237,39 @@ function MSSQLInstance{
     return $instance
 }
 
+
+
+function XMLOut{
+    param([string]$xmldata,[string]$xmlfile)
+    $xml_lines=$xmldata -split '\\n'
+
+    # Write plugin xml modules data to OUTPUT for Agent 
+    if (!$xmlfile){
+        foreach ($line in $xml_lines){
+            if ($line -eq ""){continue}
+            echo $line
+       }
+       return
+    }
+
+    # Write plugin xml modules data to file for Broker 
+    # We need to know date for agent header...
+    $now = $(get-date -f "yyyy-MM-dd HH:mm:ss")
+    $stream = [System.IO.StreamWriter] $xmlfile
+    $stream.WriteLine("<?xml version='1.0' encoding='UTF-8'?>")
+    $stream.WriteLine("<agent_data agent_name='$brokername' timestamp='$now' version='5.0' os='$os' os_version='$osversion' interval='300'>")
+
+    foreach ($line in $xml_lines){
+        if ($line -eq ""){continue}
+            $stream.WriteLine($line)
+    }
+    $stream.WriteLine("</agent_data>")
+    $stream.close()
+}
+
+
+
+
 ######## Main
 
 
@@ -254,7 +287,7 @@ function MSSQLInstance{
 $modules_in_plugin = @{
      "Servicio" = @{ 
         module_type = "generic_proc"; 
-        module_name = "Servicio %nombre_servicio%"; 
+        module_name = "DISP_Servicio %nombre_servicio%"; 
         module_description = "Servicio %nombre_servicio%";
         } 
      "MSSQL_Conectividad" = @{ 
@@ -296,17 +329,15 @@ $plugin_configfile="C:\MONITORIZACION\PaaS_SQLServer_plugin.yomismo.cfg"
 
 if (-not (Test-Path $plugin_configfile)){$plugin_configfile=$plugin_default_configfile}
 
+
+
 # Tentacle Agent Output Dir
-
 $xml_out_dir="C:\MONITORIZACION\temp"
-
-
-
-
-
 
 if ($help -or $version){ Usage }
 
+
+# List All available modules that this plugin could check
 if ($list){
     $arr_modules_in_plugin = $modules_in_plugin.Keys
     foreach ($a in $arr_modules_in_plugin){
@@ -316,42 +347,44 @@ if ($list){
         }
     }
     exit
-
 }
 
 
 # Configuration for modules from configfile
 $cfg_modules=@{}
 
-#Agent
+# Agent
 $xml_agent=""
 $agent_data=@{}
 
-#Broker
+# Broker
 $brokersuffix="SALUD"
 $xml_broker=""
 $broker_data=@{}
 
-
+# For each line in configuration file do its check and add data to its own module
 foreach ($cfgline in [System.IO.File]::ReadLines($plugin_configfile)) {
+    
     #Avoid Comments
     if($cfgline -match "((^#)|(^\s+$))" ){continue}
 
+    # Initiate as Agent only
     $isbroker=$false
 
-    #$alias, $isbroker, $parameters, $tags, $thresholds=@()
-
-    #Alias Modulo || BROKER(true/false) || Parametros (param_1=value1,param_2=value2,param_3=value3...) || TAGS || Umbral Warning, Umbral Critico ||
+    # Configuration Fields come delimited by '||' (two pipes)
     $alias, $isbroker, $parameters, $tags, $thresholds=$cfgline -split '\|\|'
    
+    # Avoid left and rigth spaces in alias (spaces at both sides are allowed for better reading)
     $alias=$alias.trim()
 
+    # Create an empty table/hash for this check from file
     $cfg_modules[$alias]=@{}
-
+    
+    # Give name for this "configuration line"
     $cfg_modules[$alias]["alias"]=$alias
  
     
-    # Check if something is in isbroker column
+    # Check if exists isbroker field
     if (!$isbroker){
         $isbroker=$false
     }else{
@@ -359,15 +392,17 @@ foreach ($cfgline in [System.IO.File]::ReadLines($plugin_configfile)) {
         if ($isbroker -eq "" -or $isbroker.ToUpper() -ne "TRUE"){$isbroker=$false}
     }
 
+    # Take parameters from configuration and sepaparate them into param=value with ',' as delimiter
     if ($parameters){
         $parameters=$parameters.trim();
+        $parameters=$parameters -split ','
         $cfg_modules[$alias]["parameters"]=$parameters
         if ($parameters -notlike "^ "){
             $cfg_modules[$alias]["parameters"]=@{}
             foreach ($paramline in $parameters){
                 $pname,$pvalue=$paramline -split '='
-                #echo "param: [$pname]"
-                #echo "value: [$pvalue]"
+
+                # Create hash table with parameters
                 $cfg_modules[$alias]["parameters"][$pname]=$pvalue
             }
         }
@@ -375,15 +410,17 @@ foreach ($cfgline in [System.IO.File]::ReadLines($plugin_configfile)) {
     if ($tags){$cfg_modules[$alias]["tags"]=$tags.trim()}
     if ($thresholds){$cfg_modules[$alias]["thresholds"]=$thresholds.trim()}
 
-    $parameters=$cfg_modules[$alias]["parameters"] -split ','
+    #$parameters=$cfg_modules[$alias]["parameters"] -split ','
 
 
     ## Monitoring
+    #
+    # Every configured check in file is done just one time and value is added for agent and for broker too, this way both have same value even it is needed or not
+    #
 
     #Service Monitoring 
     if ($alias -match "(^Servicio$)" ){
         $servicename= $cfg_modules[$alias]["parameters"]["servicio"]
-        #$servicename=$alias -replace "^Servicio_", ""
         $module_name=$modules_in_plugin["Servicio"]["module_name"] -replace "%nombre_servicio%", "$servicename"
         $module_type=$modules_in_plugin["Servicio"]["module_type"]
         $module_description=$modules_in_plugin["Servicio"]["module_description"] -replace "%nombre_servicio%", "$servicename"
@@ -522,205 +559,27 @@ foreach ($cfgline in [System.IO.File]::ReadLines($plugin_configfile)) {
             $xml_agent=Add_Module_xml $xml_agent "$module_name" "$module_type" $agent_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"]
         }    
     }
-    #
-
-}
-
-function XMLOut{
-    param([string]$xmldata,[string]$xmlfile)
-    if (!$xmlfile){
-        $xml_lines=$xmldata -split '\\n'
-        foreach ($line in $xml_lines){
-            if ($line -eq ""){continue}
-            echo $line
-       }
-       return
-    }
-
-
-    $xml_lines=$xmldata -split '\\n'
-    foreach ($line in $xml_lines){
-        if ($line -eq ""){continue}
-            echo $line
-    }
-
 }
 
 
+# Checks from configuration file are done... so print their results
 
+# For Agent just print OUT xml module tags
 XMLOut ("$xml_agent")
 
-
+# If there is any data for broken agent create a file with all its xml module tags and agent headers/end
 if ($xml_broker -ne ""){
-
-    #$xml_broker_lines=$xml_broker -split '\\n'
-    $now = $(get-date -f "yyyy-MM-dd HH:mm:ss")
+    
+    # Theses data is needed jut in case of broker agent
     $brokername=$($env:COMPUTERNAME) + "_" + $brokersuffix
-    $xml_outfile_broker=$xml_out_dir+"\"+$brokername
-
-    echo "xml_outfile_broker $xml_outfile_broker"
-
     $os="Windows"
     $osversion=(Get-WmiObject Win32_OperatingSystem).Caption
 
-    echo "--------------------"
+    # Filename will be created using a random float number between 0 and 1000 (we replace decimal symbol if needed...) and brokername 
+    $randomseed=$(Get-Random -Minimum 0.0 -Maximum 1000) -replace ",", "."
+    $xml_outfile_broker=$xml_out_dir+"\"+$brokername+$randomseed+".data"
 
-    echo "<?xml version='1.0' encoding='UTF-8'?>\n"
-    echo "<agent_data agent_name='$brokername' timestamp='$now' version='5.0' os='$os' os_version='$osversion' interval='300'>"
-
-    XMLOut ("$xml_broker","$xml_outfile_broker")
-
-    echo "</agent_data>"
-
+    # For broken agent print xml modules in file for tentacle
+    XMLOut "$xml_broker" "$xml_outfile_broker"
 }
 
-
-
-exit
-
-
-
-
-
-
-
-
-
-$sqlclusterresources=@()
-$hostname=$env:computername
-$PluginName="Plugin SQLServer PaaS"
-
-$modules_prefix="SQLServer "
-
-#$fileconfigs.GetEnumerator() | Sort-Object Name
-
-$sqlinstances=$instances -split ','
-
-$sqlinstances=CleanArraySpaces $sqlinstances
-
-
-#$tags=CleanArraySpaces $tags
-
-foreach ($instance in $sqlinstances) {
-
-        # Get Service Status
-        $module_name=$modules_prefix+"Service Status $instance"
-        $module_type="generic_proc"
-        $module_description="SQL Service Status for instance $instance - All other modules will not refresh if server is down."
-        $module_value=SQLServiceInstanceRunning "$instance"
-        
-        Module_xml  "$module_name" "$module_type" "$module_value" "$module_description" "$tags"
-    
-        # If Service is not running, don't check anything else 
-        if ($module_value -eq 0){continue}
-
-        # Get Service Status
-        $module_name=$modules_prefix+"Agent Service Status $instance"
-        $module_type="generic_proc"
-        $module_description="SQL Agent Service Status for instance ${instance}."
-        $module_value=SQLServiceAgentRunning "$instance"
-        
-        Module_xml  "$module_name" "$module_type" "$module_value" "$module_description" "$tags"
-    
-        # If Service is not running, don't check anything else 
-        #if ($module_value -eq 0){continue}
-
-
-        # Obtain Cluster Resource Names instead of Hostnames for a Cluster Environment
-        Try{
-            Get-ClusterNode $hostname   -ErrorVariable getServiceError -ErrorAction SilentlyContinue| Get-ClusterResource | where-object {$_.ResourceType.name -eq "SQL Server Availability Group"}|foreach-object {
-                $sqlclusterresources+= $_.Name
-            }
-        }
-        Catch{
-            $sqlclusterresources+= $hostname
-        }
-
-        #write-host "[$sqlclusterresources]"
-
-        # Foreach SQL Group Resorce Running on this Node try to connect
-        foreach ($sqlres in $sqlclusterresources) {
-        
-            # If instance is default instance just use NODE_NAME (non cluster) or RESOURCE_NAME\INSTANCE 
-            if ($instance -like "MSSQLSERVER" -or $instance -like "*\MSSQLSERVER"){$serverinstance=$sqlres}else{$serverinstance=$sqlres + "\" + $instance }
-
-            #write-host "-->[$serverinstance]"
-
-            $module_name=$modules_prefix+"Connectivity to instance $instance"
-            $module_type="generic_proc"
-            $module_description="SQL Connectivity Status for instance ${instance}."
-            $module_value=SQLConnectivity "$serverinstance" 
-            
-            Module_xml  "$module_name" "$module_type" "$module_value" "$module_description" "$tags"
-
-            # Metric Modules
-            $module_name=$modules_prefix +"Connection Attempts $instance"
-            $module_type="generic_data"
-            $module_description="Number of total login attempts to the database"
-            $module_value=SQLQueryMetric "$serverinstance" "select @@connections" "$module_name"
-
-            Module_xml  "$module_name" "$module_type" "$module_value" "$module_description" "$tags"
-
-
-
-            $module_name=$modules_prefix +"Total Connections $instance"
-            $module_type="generic_data"
-            $module_description="Number of total connections to instance databases"
-            $module_value=SQLQueryMetric "$serverinstance" "SELECT COUNT(dbid) as Column1 FROM sys.sysprocesses WHERE dbid > 0" "$module_name"
-
-            Module_xml  "$module_name" "$module_type" "$module_value" "$module_description" "$tags"
-
-
-
-            # Instance Databases Sizes
-            $dbsizes=SQLDBSizes "$serverinstance"
-            foreach($dbname in $dbsizes.Keys)
-            {
-                $module_name=$modules_prefix +"$instance Database "+ $dbname
-                $module_type="generic_data"
-                $module_description="Size of Instance $instance Database $dbname in KB"
-                $module_value=$dbsizes.$dbname
-
-                Module_xml  "$module_name" "$module_type" "$module_value" "$module_description" "$tags"
-
-            }
-
-
-        }
-
-
-
-    
-}
-
-
-# Avoid Common Counter if cluster node does not own any SQL resource...
-if ($sqlclusterresources.Count -ne 0){
-# Common Counters for All Instances
-
-# Lock Waits/sec
-$module_name=$modules_prefix +"Lock Waits/sec ALL"
-$module_type="generic_data"
-$module_description="MSSQL_Average Wait Time"
-$module_value=SQLGetCounter "\SQLServer:Locks(_total)\Lock Waits/sec"
-
-Module_xml  "$module_name" "$module_type" "$module_value" "$module_description" "$tags"
-
-# Logins/sec
-$module_name=$modules_prefix +"Logins/sec ALL"
-$module_type="generic_data"
-$module_description="MSSQL_General Statistics\Logins/sec"
-$module_value=SQLGetCounter "\SQLServer:General Statistics\Logins/sec"
-
-Module_xml  "$module_name" "$module_type" "$module_value" "$module_description" "$tags"
-
-
-# TEST for 
-#$module_name=$modules_prefix +"Workload Group Stats(internal)\CPU usage"
-#$module_type="generic_data"
-#$module_description="Workload Group Stats(internal)\CPU usage"
-#$module_value=SQLGetCounter "\SQLServer:Workload Group Stats(internal)\CPU usage %"
-
-#Module_xml  "$module_name" "$module_type" "$module_value" "$module_description" "$tags"
-
-}
