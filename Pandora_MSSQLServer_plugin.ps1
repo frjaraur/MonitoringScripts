@@ -279,7 +279,7 @@ function XMLOut{
 
 ######## Main
 
-$plugin_name="SQLServer_plugin_"+$VER
+$plugin_name="PaaS_SQLServer_plugin_"+$VER
 
 if ($help -or $version){ Usage }
 
@@ -348,7 +348,7 @@ if ($list){
 
 
 # DefaultConfigfile if specific Configfile does not exist
-$plugin_configfile=GetConfigFile("C:\PANDORA\collections")
+$plugin_configfile=GetConfigFile("C:\MONITORIZACION\collections")
 if (-not (Test-Path $plugin_configfile)){
     PluginError $plugin_name "CRITICAL" "ERROR: No se encontro el fichero $plugin_configfile"
 }
@@ -356,7 +356,8 @@ if (-not (Test-Path $plugin_configfile)){
 
 
 # Tentacle Agent Output Dir
-$xml_out_dir="C:\PANDORA\temp"
+$xml_out_dir="C:\MONITORIZACION\temp"
+
 
 
 
@@ -370,7 +371,7 @@ $xml_agent=""
 $agent_data=@{}
 
 # Broker
-$brokersuffix="HEATH"
+$brokersuffix="SALUD"
 $xml_broker=""
 $broker_data=@{}
 
@@ -403,6 +404,11 @@ foreach ($cfgline in [System.IO.File]::ReadLines($plugin_configfile)) {
         $isbroker=$isbroker.trim()
         if ($isbroker -eq "" -or $isbroker.ToUpper() -ne "TRUE"){$isbroker=$false}
     }
+    
+    # Thresholds
+    if(!$thresholds){$thresholds=""}
+
+
 
     # Take parameters from configuration and sepaparate them into param=value with ',' as delimiter
     if ($parameters){
@@ -446,9 +452,9 @@ foreach ($cfgline in [System.IO.File]::ReadLines($plugin_configfile)) {
 
 
         if ($isbroker -ne $false){
-            $xml_broker=Add_Module_xml $xml_broker "$module_name" "$module_type" $broker_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"]
+            $xml_broker=Add_Module_xml $xml_broker "$module_name" "$module_type" $broker_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"] $thresholds
         }else{
-            $xml_agent=Add_Module_xml $xml_agent "$module_name" "$module_type" $agent_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"]
+            $xml_agent=Add_Module_xml $xml_agent "$module_name" "$module_type" $agent_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"] $thresholds
             
         }
     
@@ -471,9 +477,9 @@ foreach ($cfgline in [System.IO.File]::ReadLines($plugin_configfile)) {
 
 
         if ($isbroker -ne $false){
-            $xml_broker=Add_Module_xml $xml_broker "$module_name" "$module_type" $broker_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"]
+            $xml_broker=Add_Module_xml $xml_broker "$module_name" "$module_type" $broker_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"] $thresholds
         }else{
-            $xml_agent=Add_Module_xml $xml_agent "$module_name" "$module_type" $agent_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"]
+            $xml_agent=Add_Module_xml $xml_agent "$module_name" "$module_type" $agent_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"] $thresholds
         }    
 
     }
@@ -491,9 +497,9 @@ foreach ($cfgline in [System.IO.File]::ReadLines($plugin_configfile)) {
         }
 
         if ($isbroker -ne $false){
-            $xml_broker=Add_Module_xml $xml_broker "$module_name" "$module_type" $broker_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"]
+            $xml_broker=Add_Module_xml $xml_broker "$module_name" "$module_type" $broker_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"] $thresholds
         }else{
-            $xml_agent=Add_Module_xml $xml_agent "$module_name" "$module_type" $agent_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"]
+            $xml_agent=Add_Module_xml $xml_agent "$module_name" "$module_type" $agent_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"] $thresholds
         }    
     }
      
@@ -510,9 +516,9 @@ foreach ($cfgline in [System.IO.File]::ReadLines($plugin_configfile)) {
 
 
         if ($isbroker -ne $false){
-            $xml_broker=Add_Module_xml $xml_broker "$module_name" "$module_type" $broker_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"]
+            $xml_broker=Add_Module_xml $xml_broker "$module_name" "$module_type" $broker_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"] $thresholds
         }else{
-            $xml_agent=Add_Module_xml $xml_agent "$module_name" "$module_type" $agent_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"]
+            $xml_agent=Add_Module_xml $xml_agent "$module_name" "$module_type" $agent_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"] $thresholds
         }    
     }
 
@@ -540,9 +546,9 @@ foreach ($cfgline in [System.IO.File]::ReadLines($plugin_configfile)) {
 
 
                 if ($isbroker -ne $false){
-                    $xml_broker=Add_Module_xml $xml_broker "$module_name" "$module_type" $broker_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"]
+                    $xml_broker=Add_Module_xml $xml_broker "$module_name" "$module_type" $broker_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"] $thresholds
                 }else{
-                    $xml_agent=Add_Module_xml $xml_agent "$module_name" "$module_type" $agent_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"]
+                    $xml_agent=Add_Module_xml $xml_agent "$module_name" "$module_type" $agent_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"] $thresholds
                 }    
         }
 
@@ -566,9 +572,9 @@ foreach ($cfgline in [System.IO.File]::ReadLines($plugin_configfile)) {
 
 
         if ($isbroker -ne $false){
-            $xml_broker=Add_Module_xml $xml_broker "$module_name" "$module_type" $broker_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"]
+            $xml_broker=Add_Module_xml $xml_broker "$module_name" "$module_type" $broker_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"] $thresholds
         }else{
-            $xml_agent=Add_Module_xml $xml_agent "$module_name" "$module_type" $agent_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"]
+            $xml_agent=Add_Module_xml $xml_agent "$module_name" "$module_type" $agent_data[$module_name] "$module_description" $cfg_modules[$alias]["tags"] $thresholds
         }    
     }
 }
