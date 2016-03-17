@@ -12,6 +12,7 @@ use Getopt::Std;
 use File::Basename;
 use File::Find;
 use POSIX qw(setsid strftime);
+use IO::Socket;
 
 my $me = basename($0);
 our $scriptname=$me;$scriptname=~s/\.pl$//g;
@@ -212,6 +213,22 @@ sub XMLOut{
     close XMLBROKERFH;
 }
 
+
+
+sub TCPPortStatus{
+	my ($host, $port)=@_;
+	return 0 if ($port eq "");
+	my $portstatus = IO::Socket::INET->new(
+		Proto    => "tcp",
+		PeerAddr => $host,
+		PeerPort => $port,
+		Timeout  => 8,
+	);
+	
+	if ($portstatus) {return 1;}
+	return 0;
+}
+
 sub GetOS{
 	my $os=$^O;
 	my $osversion="unknown";
@@ -298,6 +315,11 @@ my %modules_in_plugin=(#alias => [type, module name, description]
 		module_querystring => "show status like 'Slow_queries'",
 		module_searchpattern => "Slave.*Running",
 		},
+	'MySQL_Puerto' => {
+		module_type => "generic_proc",
+		module_name => "MySQL_Puerto %puerto%",
+		module_description => "MySQL_Puerto %puerto%",
+		},		
 );
 
 my %opts;
@@ -493,6 +515,32 @@ while(<CFGFH>){
         }
 
     }	
+	
+	
+	# MySQL Port
+    if ($alias eq "MySQL_Puerto"){
+        my $host=$cfg_modules{$alias}{"parameters"}{"host"} // 'localhost';
+		my $port=$cfg_modules{$alias}{"parameters"}{"puerto"} // '';
+		my $module_name=$modules_in_plugin{"MySQL_Puerto"}{"module_name"};
+        $module_name=~s/\%puerto\%/\'$port\'/;
+        my $module_type=$modules_in_plugin{"MySQL_Puerto"}{"module_type"};
+		my $module_description=$modules_in_plugin{"MySQL_Puerto"}{"module_description"};
+		$module_description=~s/\%puerto\%/\'$port\'/;
+		
+        if(!$agent_data{$module_name}){
+            my $module_value=&TCPPortStatus($host, $port);
+            $agent_data{$module_name}=$module_value;
+			$broker_data{$module_name}=$module_value;
+        }
+
+        if ($isbroker){
+            $xml_broker=&Add_Module_xml($xml_broker,"$module_name","$module_type",$broker_data{$module_name},"$module_description",$cfg_modules{$alias}{"tags"},$thresholds);
+        }else{
+            $xml_agent=&Add_Module_xml($xml_agent,"$module_name","$module_type",$agent_data{$module_name},"$module_description",$cfg_modules{$alias}{"tags"},$thresholds);
+        }
+
+    }		
+	
 
 }
 
